@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 var (
 	conf = []byte(`
@@ -9,7 +11,6 @@ file_block_unit: 1g
 cache_size: 10m
 data_dir: ./data
 `)
-
 )
 
 func TestParseConfig(t *testing.T) {
@@ -23,7 +24,7 @@ func TestParseConfig(t *testing.T) {
 	if v, err := c.Cache.Value(); err != nil || v != 10*megabyte {
 		t.Fatalf("Unexpected cache size %v, %v", v, err)
 	}
-	if c.HostAndPort!="localhost:1607" {
-		t.Errorf("Unexpected host_port %s",c.HostAndPort)
+	if c.HostAndPort != "localhost:1607" {
+		t.Errorf("Unexpected host_port %s", c.HostAndPort)
 	}
 }

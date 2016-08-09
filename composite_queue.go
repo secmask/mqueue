@@ -2,10 +2,10 @@ package mqueue
 
 import (
 	"os"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/edsrzf/mmap-go"
-	"sync"
 )
 
 type CompositeQueueOption struct {

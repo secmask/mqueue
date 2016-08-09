@@ -20,6 +20,7 @@ type Config struct {
 	Cache         HumanSize `yaml:"cache_size"`
 	DataDir       string    `yaml:"data_dir"`
 	LogTo         string    `yaml:"log_to"`
+	Chroot        string    `yaml:"chroot"`
 }
 
 type HumanSize string

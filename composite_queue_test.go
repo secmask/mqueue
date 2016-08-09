@@ -1,12 +1,14 @@
 package mqueue
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestOpenCompositionQueue(t *testing.T) {
 	opt := CompositeQueueOption{
 		FileBlockUnit: 1024,
 		Name:          "k1",
-		CacheSize:      128,
+		CacheSize:     128,
 		BackFile:      "k1.sq",
 	}
 	q, err := OpenCompositionQueue(opt)

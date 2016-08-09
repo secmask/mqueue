@@ -2,12 +2,13 @@ package main
 
 import (
 	"path"
-	"sync"
-
-	log "github.com/Sirupsen/logrus"
-	"github.com/secmask/mqueue"
 	"path/filepath"
 	"strings"
+	"sync"
+
+	"github.com/secmask/mqueue"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type QueueMan struct {
@@ -33,7 +34,7 @@ func (q *QueueMan) GetOrCreate(qName string) (*mqueue.CompositeQueue, error) {
 	}
 	opt := mqueue.CompositeQueueOption{
 		Name:          qName,
-		BackFile:      path.Join(q.conf.DataDir, qName + ".mq"),
+		BackFile:      path.Join(q.conf.DataDir, qName+".mq"),
 		FileBlockUnit: uint64(q.conf.FileBlockUnit.ValueWithDefault(gigabyte)),
 		CacheSize:     uint64(q.conf.Cache.ValueWithDefault(8 * megabyte)),
 	}

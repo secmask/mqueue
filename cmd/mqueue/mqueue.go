@@ -1,18 +1,21 @@
 package main
 
 import (
-	"flag"
-
 	"context"
-	log "github.com/Sirupsen/logrus"
-	"github.com/secmask/mqueue"
-	"gopkg.in/natefinch/lumberjack.v2"
+	"flag"
 	"net"
 	"os"
 	"os/signal"
 	"path"
 	"sync"
 	"syscall"
+
+	"github.com/secmask/mqueue"
+
+	log "github.com/Sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
+	"os/user"
+	"strconv"
 )
 
 func main0() {
@@ -84,10 +87,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	if config.Chroot != "" {
+		if err = syscall.Chroot(config.Chroot); err != nil {
+			panic(err)
+		}
+	}
+
 	qMan := NewQueueMan(config)
 	qMan.Load()
 	wg := &sync.WaitGroup{}
-	go func(){
+	go func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {

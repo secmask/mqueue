@@ -4,15 +4,15 @@ import (
 	"bufio"
 	"context"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	rp "github.com/secmask/go-redisproto"
 	"github.com/secmask/mqueue"
 
 	log "github.com/Sirupsen/logrus"
-	"strconv"
-	"time"
 )
 
 type Client struct {
