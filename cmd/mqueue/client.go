@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	rp "github.com/secmask/go-redisproto"
 	"github.com/secmask/mqueue"
 
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -21,14 +23,31 @@ type Client struct {
 	qMan        *QueueMan
 	context     context.Context
 	buffer      []byte
+	writeOpChan chan func()
+}
+
+var (
+	opCounter         uint64 = 0
+	opCounterSnapshot uint64 = 0
+)
+
+func init() {
+	go func() {
+		c := time.NewTicker(time.Second)
+		for range c.C {
+			opCounterSnapshot = atomic.LoadUint64(&opCounter)
+			opCounter = 0
+		}
+	}()
 }
 
 func NewClient(conn net.Conn, ctx context.Context, qMan *QueueMan) *Client {
 	return &Client{
-		conn:    conn,
-		context: ctx,
-		qMan:    qMan,
-		buffer:  make([]byte, mqueue.MaxElementLength),
+		conn:        conn,
+		context:     ctx,
+		qMan:        qMan,
+		buffer:      make([]byte, mqueue.MaxElementLength),
+		writeOpChan: make(chan func(), 512),
 	}
 }
 
@@ -38,6 +57,18 @@ func (c *Client) Run(wg *sync.WaitGroup) {
 
 	parser := rp.NewParser(c.conn)
 	c.redisWriter = rp.NewWriter(bufio.NewWriter(c.conn))
+
+	go func() {
+		for {
+			select {
+			case f := <-c.writeOpChan:
+				f()
+			case <-c.context.Done():
+				return
+			}
+		}
+	}()
+
 	commands := parser.Commands()
 	for {
 		select {
@@ -52,33 +83,44 @@ func (c *Client) Run(wg *sync.WaitGroup) {
 	}
 }
 
+func (c *Client) handleINFO(cmd *rp.Command) error {
+	c.redisWriter.WriteBulkString(fmt.Sprintf("Operation Rate: %d\n", opCounterSnapshot))
+	return c.redisWriter.Flush()
+}
+
 func (c *Client) processCommand(cmd *rp.Command) (err error) {
+	atomic.AddUint64(&opCounter, 1)
 	action := strings.ToUpper(string(cmd.Get(0)))
 	switch action {
-	case "PING":
-		err = c.redisWriter.WriteSimpleString("PONG")
-	case "QUIT":
-		err = c.redisWriter.WriteSimpleString("OK")
 	case "LPUSH":
 		err = c.handleLPUSH(cmd)
-	case "RPOP":
-		err = c.handleRPOP(cmd)
 	case "BRPOP":
 		err = c.handleBRPOP(cmd)
+	case "PING":
+		err = c.redisWriter.WriteSimpleString("PONG")
+		err = c.redisWriter.Flush()
+	case "QUIT":
+		err = c.redisWriter.WriteSimpleString("OK")
+		err = c.redisWriter.Flush()
+	case "RPOP":
+		err = c.handleRPOP(cmd)
 	case "LLEN":
 		err = c.handleLLEN(cmd)
 	case "KEYS":
 		err = c.handleKEYS(cmd)
 	case "DEL":
 		err = c.handleDEL(cmd)
+	case "INFO":
+		err = c.handleINFO(cmd)
 	default:
 		err = c.redisWriter.WriteError("Unsupported command")
+		err = c.redisWriter.Flush()
 	}
-	err = c.redisWriter.Flush()
 	return
 }
 
 func (c *Client) handleDEL(cmd *rp.Command) error {
+	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	err := c.qMan.Delete(qName)
 	if err != nil {
@@ -88,11 +130,13 @@ func (c *Client) handleDEL(cmd *rp.Command) error {
 }
 
 func (c *Client) handleKEYS(cmd *rp.Command) error {
+	defer c.redisWriter.Flush()
 	queues := c.qMan.Queues()
 	return c.redisWriter.WriteBulkStrings(queues)
 }
 
 func (c *Client) handleLLEN(cmd *rp.Command) error {
+	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	q, err := c.qMan.GetOrCreate(qName)
 	if err != nil {
@@ -103,6 +147,7 @@ func (c *Client) handleLLEN(cmd *rp.Command) error {
 }
 
 func (c *Client) handleRPOP(cmd *rp.Command) error {
+	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	q, err := c.qMan.GetOrCreate(qName)
 	if err != nil {
@@ -125,6 +170,7 @@ func (c *Client) handleRPOP(cmd *rp.Command) error {
 }
 
 func (c *Client) handleBRPOP(cmd *rp.Command) error {
+	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	timeout, err := strconv.Atoi(string(cmd.Get(2)))
 
@@ -168,5 +214,6 @@ func (c *Client) handleLPUSH(cmd *rp.Command) error {
 	if err != nil {
 		return c.redisWriter.WriteError(err.Error())
 	}
-	return c.redisWriter.WriteInt(1)
+	c.writeOpChan <- func() { c.conn.Write([]byte(":1\r\n")) }
+	return err
 }

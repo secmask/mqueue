@@ -10,38 +10,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/secmask/mqueue"
-
 	log "github.com/Sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"os/user"
-	"strconv"
 )
-
-func main0() {
-	opt := mqueue.CompositeQueueOption{
-		FileBlockUnit: 1024,
-		Name:          "k1",
-		CacheSize:     128,
-		BackFile:      "k1.sq",
-	}
-	q, err := mqueue.OpenCompositionQueue(opt)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer q.Close()
-	log.Println("startup with length ", q.Len())
-	data := []byte("hello")
-	for i := 0; i < 1000; i++ {
-		err = q.Put(data)
-		log.Printf("%d. ", i)
-		if err != nil {
-			log.Println(err)
-			break
-		}
-	}
-	log.Println(q.Len())
-}
 
 var (
 	configFile = flag.String("c", "config.yml", "config file")

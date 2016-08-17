@@ -1,6 +1,6 @@
-file_block_unit: 1g
+file_block_unit: 2g
 cache_size: 10m
 data_dir: ./data
 log_to: stdout
 host_port: localhost:1607
-chroot: ./data/
+chroot:
