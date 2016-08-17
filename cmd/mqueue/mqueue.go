@@ -16,6 +16,7 @@ import (
 
 var (
 	configFile = flag.String("c", "config.yml", "config file")
+	version string
 )
 
 type AppContext struct {

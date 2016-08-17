@@ -84,7 +84,7 @@ func (c *Client) Run(wg *sync.WaitGroup) {
 }
 
 func (c *Client) handleINFO(cmd *rp.Command) error {
-	c.redisWriter.WriteBulkString(fmt.Sprintf("Operation Rate: %d\n", opCounterSnapshot))
+	c.redisWriter.WriteBulkString(fmt.Sprintf("Version: %s\nOperation Rate: %d\n", version, opCounterSnapshot))
 	return c.redisWriter.Flush()
 }
 
