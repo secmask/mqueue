@@ -16,7 +16,7 @@ import (
 
 var (
 	configFile = flag.String("c", "config.yml", "config file")
-	version string
+	version    string
 )
 
 type AppContext struct {
@@ -42,6 +42,14 @@ func main() {
 		log.WithError(err).Error("failed to load config file")
 	}
 
+	if config.Chroot != "" {
+		if err = syscall.Chroot(config.Chroot); err != nil {
+			panic(err)
+		} else {
+			os.Chdir("/")
+		}
+	}
+
 	if config.LogTo != "stdout" {
 		if IsDirectory(config.LogTo) {
 			ConfigLog(path.Join(config.LogTo, "app.log"), 20, 20, 30)
@@ -58,12 +66,6 @@ func main() {
 	listener, err := net.Listen("tcp", config.HostAndPort)
 	if err != nil {
 		panic(err)
-	}
-
-	if config.Chroot != "" {
-		if err = syscall.Chroot(config.Chroot); err != nil {
-			panic(err)
-		}
 	}
 
 	qMan := NewQueueMan(config)
