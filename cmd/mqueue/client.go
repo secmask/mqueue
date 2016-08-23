@@ -23,7 +23,6 @@ type Client struct {
 	qMan        *QueueMan
 	context     context.Context
 	buffer      []byte
-	writeOpChan chan func()
 }
 
 var (
@@ -43,11 +42,10 @@ func init() {
 
 func NewClient(conn net.Conn, ctx context.Context, qMan *QueueMan) *Client {
 	return &Client{
-		conn:        conn,
-		context:     ctx,
-		qMan:        qMan,
-		buffer:      make([]byte, mqueue.MaxElementLength),
-		writeOpChan: make(chan func(), 512),
+		conn:    conn,
+		context: ctx,
+		qMan:    qMan,
+		buffer:  make([]byte, mqueue.MaxElementLength),
 	}
 }
 
@@ -57,17 +55,6 @@ func (c *Client) Run(wg *sync.WaitGroup) {
 
 	parser := rp.NewParser(c.conn)
 	c.redisWriter = rp.NewWriter(bufio.NewWriter(c.conn))
-
-	go func() {
-		for {
-			select {
-			case f := <-c.writeOpChan:
-				f()
-			case <-c.context.Done():
-				return
-			}
-		}
-	}()
 
 	commands := parser.Commands()
 	for {
@@ -98,10 +85,8 @@ func (c *Client) processCommand(cmd *rp.Command) (err error) {
 		err = c.handleBRPOP(cmd)
 	case "PING":
 		err = c.redisWriter.WriteSimpleString("PONG")
-		err = c.redisWriter.Flush()
 	case "QUIT":
 		err = c.redisWriter.WriteSimpleString("OK")
-		err = c.redisWriter.Flush()
 	case "RPOP":
 		err = c.handleRPOP(cmd)
 	case "LLEN":
@@ -114,13 +99,14 @@ func (c *Client) processCommand(cmd *rp.Command) (err error) {
 		err = c.handleINFO(cmd)
 	default:
 		err = c.redisWriter.WriteError("Unsupported command")
-		err = c.redisWriter.Flush()
+	}
+	if cmd.IsLast() {
+		c.redisWriter.Flush()
 	}
 	return
 }
 
 func (c *Client) handleDEL(cmd *rp.Command) error {
-	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	err := c.qMan.Delete(qName)
 	if err != nil {
@@ -130,13 +116,11 @@ func (c *Client) handleDEL(cmd *rp.Command) error {
 }
 
 func (c *Client) handleKEYS(cmd *rp.Command) error {
-	defer c.redisWriter.Flush()
 	queues := c.qMan.Queues()
 	return c.redisWriter.WriteBulkStrings(queues)
 }
 
 func (c *Client) handleLLEN(cmd *rp.Command) error {
-	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	q, err := c.qMan.GetOrCreate(qName)
 	if err != nil {
@@ -147,7 +131,6 @@ func (c *Client) handleLLEN(cmd *rp.Command) error {
 }
 
 func (c *Client) handleRPOP(cmd *rp.Command) error {
-	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	q, err := c.qMan.GetOrCreate(qName)
 	if err != nil {
@@ -170,7 +153,6 @@ func (c *Client) handleRPOP(cmd *rp.Command) error {
 }
 
 func (c *Client) handleBRPOP(cmd *rp.Command) error {
-	defer c.redisWriter.Flush()
 	qName := string(cmd.Get(1))
 	timeout, err := strconv.Atoi(string(cmd.Get(2)))
 
@@ -214,6 +196,6 @@ func (c *Client) handleLPUSH(cmd *rp.Command) error {
 	if err != nil {
 		return c.redisWriter.WriteError(err.Error())
 	}
-	c.writeOpChan <- func() { c.conn.Write([]byte(":1\r\n")) }
+	err = c.redisWriter.WriteInt(1)
 	return err
 }
