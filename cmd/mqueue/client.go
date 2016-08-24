@@ -75,6 +75,13 @@ func (c *Client) handleINFO(cmd *rp.Command) error {
 	return c.redisWriter.Flush()
 }
 
+func (c *Client) handleECHO(cmd *rp.Command) error {
+	if cmd.ArgCount() < 2 {
+		return c.redisWriter.WriteError("echo require 1 arg")
+	}
+	return c.redisWriter.WriteBulk(cmd.Get(1))
+}
+
 func (c *Client) processCommand(cmd *rp.Command) (err error) {
 	atomic.AddUint64(&opCounter, 1)
 	action := strings.ToUpper(string(cmd.Get(0)))
@@ -97,6 +104,8 @@ func (c *Client) processCommand(cmd *rp.Command) (err error) {
 		err = c.handleDEL(cmd)
 	case "INFO":
 		err = c.handleINFO(cmd)
+	case "ECHO":
+		err = c.handleECHO(cmd)
 	default:
 		err = c.redisWriter.WriteError("Unsupported command")
 	}
