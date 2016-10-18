@@ -177,7 +177,7 @@ func (c *Client) handleBRPOP(cmd *rp.Command) error {
 
 	n, err := q.Get(c.buffer)
 	if err == nil {
-		return c.redisWriter.WriteBulk(c.buffer[:n])
+		return c.redisWriter.WriteBulks(cmd.Get(1), c.buffer[:n])
 	}
 	if err != mqueue.ErrEmpty {
 		lf := log.Fields{
@@ -188,7 +188,7 @@ func (c *Client) handleBRPOP(cmd *rp.Command) error {
 	}
 	select {
 	case data := <-q.Chan():
-		return c.redisWriter.WriteBulk(data)
+		return c.redisWriter.WriteBulks(cmd.Get(1), data)
 	case <-time.After(time.Second * time.Duration(timeout)):
 		return c.redisWriter.WriteBulk(nil)
 	}
