@@ -13,7 +13,7 @@ const (
 	hWritePos   = iota * 8
 	hReadCount  = iota * 8
 	hWriteCount = iota * 8
-	headerSize
+	headerSize  = iota * 8
 )
 
 const (

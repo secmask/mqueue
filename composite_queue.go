@@ -26,6 +26,7 @@ type CompositeQueue struct {
 	backFileHandle *os.File             // file handle to memory map
 	lock           sync.Locker          // lock guard to protect concurrent access to this composite queue
 	dataChan       chan []byte          // a chan object help us implement "BRPOP" command.
+	deleted        bool
 }
 
 func OpenCompositionQueue(option CompositeQueueOption) (*CompositeQueue, error) {
@@ -90,6 +91,9 @@ func (m *CompositeQueue) mapBackFile() (err error) {
 func (m *CompositeQueue) Get(buff []byte) (int, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	if m.deleted {
+		return 0, ErrEmpty
+	}
 	if m.readFromFile {
 		n, err := m.mapQueue.Get(buff)
 		if err == ErrEmpty {
@@ -104,7 +108,9 @@ func (m *CompositeQueue) Get(buff []byte) (int, error) {
 func (m *CompositeQueue) Put(data []byte) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-
+	if m.deleted {
+		return ErrNoSpace
+	}
 	if !m.readFromFile {
 		select {
 		case m.dataChan <- data:
@@ -152,6 +158,9 @@ func (m *CompositeQueue) transferToDisk() (err error) {
 func (m *CompositeQueue) Len() uint64 {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	if m.deleted {
+		return 0
+	}
 	if m.readFromFile {
 		return m.cacheQueue.Len() + m.mapQueue.Len()
 	}
@@ -195,5 +204,7 @@ func (m *CompositeQueue) Delete() error {
 	if err != nil {
 		log.WithFields(lf).WithError(err).Error("failed to delete file")
 	}
+	m.deleted = true
+	m.mapQueue = nil
 	return err
 }
