@@ -8,7 +8,14 @@ import (
 
 	"github.com/secmask/mqueue"
 
+	"errors"
 	log "github.com/Sirupsen/logrus"
+	"regexp"
+)
+
+var (
+	queueNamePattern  = regexp.MustCompile("^\\w+$")
+	QueueNameNotValid = errors.New("queue name is not valid")
 )
 
 type QueueMan struct {
@@ -31,6 +38,9 @@ func (q *QueueMan) GetOrCreate(qName string) (*mqueue.CompositeQueue, error) {
 	m, ok := q.queues[qName]
 	if ok {
 		return m, nil
+	}
+	if !queueNamePattern.MatchString(qName) {
+		return nil, QueueNameNotValid
 	}
 	opt := mqueue.CompositeQueueOption{
 		Name:          qName,

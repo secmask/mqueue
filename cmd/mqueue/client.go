@@ -130,9 +130,17 @@ func (c *Client) handleKEYS(cmd *rp.Command) error {
 }
 
 func (c *Client) handleLLEN(cmd *rp.Command) error {
+	lf := log.Fields{
+		"func": "handleLLEN",
+	}
 	qName := string(cmd.Get(1))
 	q, err := c.qMan.GetOrCreate(qName)
 	if err != nil {
+		if err == QueueNameNotValid {
+			lf["client"] = c.conn.RemoteAddr().String()
+			lf["queuename"] = qName
+			log.WithFields(lf).WithError(err).Error("aborted")
+		}
 		c.redisWriter.WriteError(err.Error())
 		return err
 	}
@@ -142,8 +150,16 @@ func (c *Client) handleLLEN(cmd *rp.Command) error {
 func (c *Client) handleRPOP(cmd *rp.Command) error {
 	qName := string(cmd.Get(1))
 	q, err := c.qMan.GetOrCreate(qName)
+	lf := log.Fields{
+		"func": "handleRPOP",
+	}
 	if err != nil {
 		c.redisWriter.WriteError(err.Error())
+		if err == QueueNameNotValid {
+			lf["client"] = c.conn.RemoteAddr().String()
+			lf["queuename"] = qName
+			log.WithFields(lf).WithError(err).Error("aborted")
+		}
 		return err
 	}
 
@@ -152,9 +168,7 @@ func (c *Client) handleRPOP(cmd *rp.Command) error {
 		if err == mqueue.ErrEmpty {
 			return c.redisWriter.WriteBulk(nil)
 		}
-		lf := log.Fields{
-			"func": "handleRPOP",
-		}
+
 		log.WithFields(lf).WithError(err).Error("Unexpected error")
 		return c.redisWriter.WriteError(err.Error())
 	}
@@ -162,6 +176,9 @@ func (c *Client) handleRPOP(cmd *rp.Command) error {
 }
 
 func (c *Client) handleBRPOP(cmd *rp.Command) error {
+	lf := log.Fields{
+		"func": "handleBRPOP",
+	}
 	qName := string(cmd.Get(1))
 	timeout, err := strconv.Atoi(string(cmd.Get(2)))
 
@@ -172,6 +189,11 @@ func (c *Client) handleBRPOP(cmd *rp.Command) error {
 	q, err := c.qMan.GetOrCreate(qName)
 	if err != nil {
 		c.redisWriter.WriteError(err.Error())
+		if err == QueueNameNotValid {
+			lf["client"] = c.conn.RemoteAddr().String()
+			lf["queuename"] = qName
+			log.WithFields(lf).WithError(err).Error("aborted")
+		}
 		return err
 	}
 
@@ -180,9 +202,6 @@ func (c *Client) handleBRPOP(cmd *rp.Command) error {
 		return c.redisWriter.WriteBulks(cmd.Get(1), c.buffer[:n])
 	}
 	if err != mqueue.ErrEmpty {
-		lf := log.Fields{
-			"func": "handleBRPOP",
-		}
 		log.WithFields(lf).WithError(err).Error("Unexpected error")
 		return c.redisWriter.WriteError(err.Error())
 	}
@@ -197,8 +216,16 @@ func (c *Client) handleBRPOP(cmd *rp.Command) error {
 func (c *Client) handleLPUSH(cmd *rp.Command) error {
 	qName := string(cmd.Get(1))
 	data := cmd.Get(2)
+	lf := log.Fields{
+		"func": "handleLPUSH",
+	}
 	q, err := c.qMan.GetOrCreate(qName)
 	if err != nil {
+		if err == QueueNameNotValid {
+			lf["client"] = c.conn.RemoteAddr().String()
+			lf["queuename"] = qName
+			log.WithFields(lf).WithError(err).Error("aborted")
+		}
 		return c.redisWriter.WriteError(err.Error())
 	}
 	err = q.Put(data)
