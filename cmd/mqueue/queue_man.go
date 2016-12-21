@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	queueNamePattern  = regexp.MustCompile("^\\w+$")
+	queueNamePattern  = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
 	QueueNameNotValid = errors.New("queue name is not valid")
 )
 
