@@ -55,19 +55,23 @@ func (c *Client) Run(wg *sync.WaitGroup) {
 
 	parser := rp.NewParser(c.conn)
 	c.redisWriter = rp.NewWriter(bufio.NewWriter(c.conn))
-
-	commands := parser.Commands()
-	for {
+	var done = make(chan struct{})
+	go func() {
 		select {
-		case cmd, ok := <-commands:
-			if !ok {
-				return
-			}
-			c.processCommand(cmd)
+		case <-done:
 		case <-c.context.Done():
-			return
+			c.conn.Close()
+		}
+	}()
+
+	for {
+		if cmd, err := parser.ReadCommand(); err == nil {
+			c.processCommand(cmd)
+		} else {
+			break
 		}
 	}
+	close(done)
 }
 
 func (c *Client) handleINFO(cmd *rp.Command) error {
